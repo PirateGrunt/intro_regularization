@@ -1,0 +1,145 @@
+---
+title: Regular guys talk regularization
+output: 
+  revealjs::revealjs_presentation:
+    transition: none
+---
+
+```{r include = FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(
+  echo = TRUE
+)
+```
+
+## What we'll talk aboout
+
+* Why and what
+* How
+* An example
+* Conclusion
+
+# Why and what
+
+## Why
+
+* Your data is cursed (h/t -> L. Gjeltama)
+* Let the model pick your variables!
+* No p-hacking
+* Reduce chance that the model will overfit
+
+##
+
+```{r warning = FALSE}
+library(insuranceData)
+library(statmod)
+
+data(dataOhlsson)
+
+dataOhlsson <- dataOhlsson %>% 
+  select(-antskad, -kon)
+
+fit_glm <- glm(
+  skadkost ~ .
+  , family=tweedie(var.power=1.1, link.power=0)
+  , data = dataOhlsson
+)
+```
+
+## Which coefficient should we drop?
+
+```{r echo = FALSE}
+fit_glm %>% 
+  summary()
+```
+
+## Other options
+
+* Stepwise regression
+* Feature engineering
+* PCA
+
+## Minimize some target value
+
+**OLS: **
+
+$$\sum_i^n{\left(y_i-\beta_0 -\sum_j^p\left(x_{ij}*\beta_j\right)\right)}^2 = RSS $$
+
+**Regularization:**
+
+$$ \sum_i^n{\left(y_i-\beta_0 -\sum_j^p\left(x_{ij}*\beta_j\right)\right)}^2 + \lambda\sum_j^p{\|\beta_j\|}_L = RSS + \lambda\sum_j^p{\|\beta_j\|}_L$$
+
+## L1 and L2 norms
+
+L1 = **L**east **A**bsolute **S**hrinkage and **S**election **O**perator = LASSO
+
+$$L=1\implies RSS + \lambda\sum_j^p|\beta_j|$$
+
+L2 = Ridge regression
+
+$$L=2\implies RSS + \lambda\sum_j^p{\beta_j}^2$$
+
+## The role of $\lambda$
+
+Slight analogue to credibility. $\lambda$ applies a shrinkage to the parameters. The "complement" is a coefficient of zero.
+
+Same idea: reduce variance on out of sample data.
+
+## Equivalently
+
+$$_{\beta}^{minimize}\left\{ RSS \right\} \land \left(\sum_j^p{\|\beta_j\|_L}\right)\leq{p}$$
+
+LASSO
+
+$$\left(\sum_j^p{|\beta_j|}\right)\leq{p}$$
+
+Ridge
+
+$$\left(\sum_j^p{\beta_j^2}\right)\leq{p}$$
+
+
+## Ridge
+
+$$\beta = \frac{2x_iy_i}{2x_i^2+2\lambda}$$
+
+## LASSO
+
+$$\beta = \frac{2x_iy_i-\lambda}{2x_i^2}$$
+
+# How
+
+## Steps
+
+1. Standardize the predictor space
+2. Form a set of candidate $\lambda$'s
+3. Use cross validation to measure RMSE (or other metric) and pick ideal $\lambda$
+
+# An example
+
+<!-- 
+The example could be done as a live demo. Open to suggestions about data.
+-->
+
+# Bayesian analysis
+
+## Bayesian link
+
+L1 = Bayes with Laplace prior
+
+L2 = Bayes with normal priors
+
+# Conclusion
+
+## Conclusion
+
+* Option to consider for high-dimension data
+* Choice of hyperparameter needs a fair bit of data
+
+##
+
+Thank you!
+
+## References
+
+* http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Seventh%20Printing.pdf
