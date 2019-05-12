@@ -7,6 +7,8 @@ output:
 
 ```{r include = FALSE}
 library(tidyverse)
+library(xtable)
+library(insuranceData)
 
 knitr::opts_chunk$set(
   echo = TRUE
@@ -15,12 +17,78 @@ knitr::opts_chunk$set(
 
 ## What we'll talk aboout
 
+* Data of the day
 * Why and what
 * How
 * An example
 * Conclusion
 
+## Data of the day   
+
+* *dataOhlsson* from *insuranceData* R package 
+* Swedish motorcycle insurance from Wasa, 1994 to 1998
+* We've renamed variables to English
+
+```{r, echo=FALSE} 
+# Load and rename the data (it is Swedish data)
+data("dataOhlsson") 
+
+augmentOhlsson<-
+      dataOhlsson  %>%
+          rename(age_number=agarald
+                ,age_group=kon
+                ,territory=zon
+                ,motor_class=mcklass
+                ,vehicle_age=fordald
+                ,bonus_class=bonuskl
+                ,policyholder_duration=duration
+                ,claim_count=antskad
+                ,losses=skadkost)
+  
+str(augmentOhlsson)
+
+```
+
 # Why and what
+
+## What  
+
+In (overly) techhnical terms:  
+
+* Models map data (predictors) to other data (target variable) 
+* Produce estimate of a 'true' function 
+
+$$target = f(predictors)$$
+
+## Cost function  
+* 'Good' models = optimized 'Cost Function'
+
+$$Cost Function = CF(f(predictors),target)$$
+
+* Regularization adjusts this function
+
+$$Cost Function = CF(f(predictors),target)+Reg.Term$$
+
+
+## **OLS: **
+
+$$Cost Fuction = \sum_i^n{\left(y_i-\beta_0 -\sum_j^p\left(x_{ij}*\beta_j\right)\right)}^2 = RSS $$
+
+**Regularization:**
+
+$$Cost Fuction =\sum_i^n{\left(y_i-\beta_0 -\sum_j^p\left(x_{ij}*\beta_j\right)\right)}^2 + \lambda\sum_j^p{\|\beta_j\|}_L = RSS + \lambda\sum_j^p{\|\beta_j\|}_L$$
+
+## Types of Terms: L1 and L2 norms
+
+L1 = **L**east **A**bsolute **S**hrinkage and **S**election **O**perator = LASSO
+
+$$L=1\implies RSS + \lambda\sum_j^p|\beta_j|$$
+
+L2 = Ridge regression
+
+$$L=2\implies RSS + \lambda\sum_j^p{\beta_j}^2$$
+
+Each type of regularization has uses, speaking of...
 
 ## Why
 
@@ -28,22 +96,17 @@ knitr::opts_chunk$set(
 * Let the model pick your variables!
 * No p-hacking
 * Reduce chance that the model will overfit
+* Collinearity
 
 ##
 
 ```{r warning = FALSE}
-library(insuranceData)
 library(statmod)
 
-data(dataOhlsson)
-
-dataOhlsson <- dataOhlsson %>% 
-  select(-antskad, -kon)
-
 fit_glm <- glm(
-  skadkost ~ .
+  losses ~ .-claim_count
   , family=tweedie(var.power=1.1, link.power=0)
-  , data = dataOhlsson
+  , data = augmentOhlsson
 )
 ```
 
@@ -54,58 +117,33 @@ fit_glm %>%
   summary()
 ```
 
+L1 Norm works well in this use case; pushes things to zero.
+$$\beta = \frac{2x_iy_i-\lambda}{2x_i^2}$$
+
+## Collinearity
+Predictors collinear (equation showing if move opposite directions same prediction but insane coefficients)
+
+If we know both are important, we may not want to choose:
+
+L2 Norm works in this situation because it restricts the size, but keeps both.
+$$\beta = \frac{2x_iy_i}{2x_i^2+2\lambda}$$
+
+Show age group and Age both in (or add variables that are linear transforms in our dataset)
+
+
 ## Other options
 
 * Stepwise regression
 * Feature engineering
 * PCA
 
-## Minimize some target value
-
-**OLS: **
-
-$$\sum_i^n{\left(y_i-\beta_0 -\sum_j^p\left(x_{ij}*\beta_j\right)\right)}^2 = RSS $$
-
-**Regularization:**
-
-$$ \sum_i^n{\left(y_i-\beta_0 -\sum_j^p\left(x_{ij}*\beta_j\right)\right)}^2 + \lambda\sum_j^p{\|\beta_j\|}_L = RSS + \lambda\sum_j^p{\|\beta_j\|}_L$$
-
-## L1 and L2 norms
-
-L1 = **L**east **A**bsolute **S**hrinkage and **S**election **O**perator = LASSO
-
-$$L=1\implies RSS + \lambda\sum_j^p|\beta_j|$$
-
-L2 = Ridge regression
-
-$$L=2\implies RSS + \lambda\sum_j^p{\beta_j}^2$$
-
-## The role of $\lambda$
+## Overfitting and the role of $\lambda$
 
 Slight analogue to credibility. $\lambda$ applies a shrinkage to the parameters. The "complement" is a coefficient of zero.
 
 Same idea: reduce variance on out of sample data.
 
-## Equivalently
 
-$$_{\beta}^{minimize}\left\{ RSS \right\} \land \left(\sum_j^p{\|\beta_j\|_L}\right)\leq{p}$$
-
-LASSO
-
-$$\left(\sum_j^p{|\beta_j|}\right)\leq{p}$$
-
-Ridge
-
-$$\left(\sum_j^p{\beta_j^2}\right)\leq{p}$$
-
-
-## Ridge
-
-$$\beta = \frac{2x_iy_i}{2x_i^2+2\lambda}$$
-
-## LASSO
-
-$$\beta = \frac{2x_iy_i-\lambda}{2x_i^2}$$
 
 # How
 
