@@ -21,15 +21,15 @@ knitr::opts_chunk$set(
 * Why regularization
 * What is it?
 * How do I do it?
-* An example
+* Tweedie
 * Mathy stuff
 * Conclusion
 
 # Why?
 
-## 
+## Why?
 
-Let's start with some data and a GLM
+Let's start with some data and a model
 
 ## Data
 
@@ -42,7 +42,7 @@ library(insuranceData)
 data("dataOhlsson")
 
 # Drop the claim count variable
-augmentOhlsson <- dataOhlsson %>%
+tbl_ohlsson <- dataOhlsson %>%
   select(
     age_number = agarald
     , territory = zon
@@ -57,25 +57,22 @@ augmentOhlsson <- dataOhlsson %>%
 ##
 
 ```{r}
-str(augmentOhlsson)
+str(tbl_ohlsson)
 ```
 
 ## Fit a model
 
-```{r warning = FALSE}
-library(statmod)
-
-fit_glm <- glm(
+```{r}
+fit_ols <- lm(
   losses ~ .
-  , family = tweedie(var.power = 1.1, link.power = 0)
-  , data = augmentOhlsson
+  , data = tbl_ohlsson
 )
 ```
 
 ## Which coefficient should we drop?
 
-```{r echo = FALSE}
-fit_glm %>% 
+```{r}
+fit_ols %>% 
   summary()
 ```
 
@@ -112,7 +109,7 @@ Regluarization adjusts the cost function which creates the model
 * GLM -> maximum likelihood/residual deviance
 * Regularization augments OLS/GLM with a penalty based on the magnitude of the coefficients
 
-## OLS cost functions
+## OLS cost function
 
 $$\sum_i^n{\left(y_i-\hat{y_i}\right)^2}=\sum_i^n{\left(y_i-\hat{\beta_0} -\sum_j^p\left(x_{ij}*\hat{\beta_j}\right)\right)}^2 = RSS $$
 
@@ -163,34 +160,137 @@ $$L=2\implies RSS + \lambda\sum_j^p{\beta_j}^2$$
 
 # How
 
-## Steps
+## Easy answer
 
-1. Standardize the predictor space
-2. Form a set of candidate $\lambda$'s
-3. Fit
-3. Use cross validation to measure RMSE (or other metric) on out of sample (test) data
+Use `glmnet`
+
+```{r results = 'hide'}
+mat_ohlsson <- tbl_ohlsson %>% 
+  select(-losses) %>% 
+  as.matrix()
+
+library(glmnet)
+fit_ridge <- glmnet(
+  x = mat_ohlsson
+  , y = tbl_ohlsson$losses
+  , family = 'gaussian'
+  , alpha = 0
+)
+```
+
+## About `alpha`
+
+Used to mix Ridge and Lasso
+
+$$(1 - \alpha)/2\|\beta\|^2_2 + \alpha\|\beta\|_1$$
+
+$$\alpha = 0 \implies Ridge$$
+
+$$\alpha = 1 \implies Lasso$$
+
+## What does `glmnet` do?
+
+1. Standardize the predictor space (unless you tell it not to)
+2. Form a set of candidate $\lambda$'s (unless you provide your own)
+3. Fit coefficients for each $\lambda$
+
+We should:
+
+1. Use cross validation to measure RMSE (or other metric) on out of sample (test) data
 4. Pick the $\lambda$ which optimizes out of sample predictions
 
 ## Standardize predictors
 
 * Why?
-* 
-
-## Form a set of candidate $\lambda$'s
+* OLS is scale-invariant, regularization isn't
+* Extreme(ish) case: convert currency
 
 ```{r}
-
+fit_ols %>% 
+  summary()
 ```
 
-## Fit
+## Fit using many different $\lambda$'s
+
+```{r echo = FALSE}
+fit_ridge %>% 
+  plot(xvar = 'lambda')
+```
+
+## What does lasso look like?
 
 ```{r}
+fit_lasso <- glmnet(
+    x = mat_ohlsson
+  , y = tbl_ohlsson$losses
+  , family = 'gaussian'
+  , alpha = 1
+)
+```
 
+## What does lasso look like?
+
+```{r echo = FALSE}
+fit_lasso %>% 
+  plot(xvar = 'lambda')
+```
+
+## Compare
+
+```{r echo = FALSE}
+old_par <- par(mfrow = c(1, 2))
+
+fit_ridge %>% plot(xvar = 'lambda')
+title('Ridge')
+abline(h = 0, col = 'black')
+
+fit_lasso %>% 
+  plot(xvar = 'lambda')
+title('Lasso')
+abline(h = 0, col = 'black')
+
+par(old_par)
 ```
 
 ## Use cross validation to measure RMSE (or other metric) on out of sample (test) data
 
+```{r}
+fit_lasso_cv <- cv.glmnet(
+    x = mat_ohlsson
+  , y = tbl_ohlsson$losses
+  , family = 'gaussian'
+  , alpha = 1
+)
+```
+
+## What is wrong here?
+
+```{r}
+plot(fit_lasso_cv)
+```
+
 ## Pick the $\lambda$ which optimizes out of sample predictions
+
+```{r}
+fit_lasso_cv$lambda.min
+```
+
+# The Tweedie distribution
+
+## GLM
+
+```{r warning = FALSE}
+library(statmod)
+
+fit_glm <- glm(
+  losses ~ .
+  , family = tweedie(var.power = 1.1, link.power = 0)
+  , data = tbl_ohlsson
+)
+```
+
+## HDTweedie
+
 
 # Mathy stuff
 
@@ -230,7 +330,7 @@ tbl_beta %>%
   geom_raster(data = tbl_beta %>% filter(lasso), aes(fill = lasso), fill = 'grey', alpha = 0.5)
 ```
 
-##
+## The formulaic way of saying that
 
 $$\beta = \frac{2x_iy_i-\lambda}{2x_i^2}$$
 
@@ -275,4 +375,4 @@ Thank you!
 ## References
 
 * http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Seventh%20Printing.pdf
-* 
+* https://web.stanford.edu/~hastie/Papers/ESLII.pdf
