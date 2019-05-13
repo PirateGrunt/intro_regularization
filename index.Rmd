@@ -1,14 +1,15 @@
 ---
-title: Regular guys talk regularization
 output: 
   revealjs::revealjs_presentation:
     transition: none
+    css: custom.css
 ---
+
+# Regular guys talk regularization
 
 ```{r include = FALSE}
 library(tidyverse)
 library(xtable)
-library(insuranceData)
 
 knitr::opts_chunk$set(
   echo = TRUE
@@ -17,95 +18,56 @@ knitr::opts_chunk$set(
 
 ## What we'll talk aboout
 
-* Data of the day
-* Why and what
-* How
+* Why regularization
+* What is it?
+* How do I do it?
 * An example
+* Mathy stuff
 * Conclusion
 
-## Data of the day   
+# Why?
+
+## 
+
+Let's start with some data and a GLM
+
+## Data
 
 * *dataOhlsson* from *insuranceData* R package 
 * Swedish motorcycle insurance from Wasa, 1994 to 1998
 * We've renamed variables to English
 
-```{r, echo=FALSE} 
-# Load and rename the data (it is Swedish data)
-data("dataOhlsson") 
+```{r }
+library(insuranceData)
+data("dataOhlsson")
 
-augmentOhlsson<-
-      dataOhlsson  %>%
-          rename(age_number=agarald
-                ,age_group=kon
-                ,territory=zon
-                ,motor_class=mcklass
-                ,vehicle_age=fordald
-                ,bonus_class=bonuskl
-                ,policyholder_duration=duration
-                ,claim_count=antskad
-                ,losses=skadkost)
+# Drop the claim count variable
+augmentOhlsson <- dataOhlsson %>%
+  select(
+    age_number = agarald
+    , territory = zon
+    , motor_class = mcklass
+    , vehicle_age = fordald
+    , bonus_class = bonuskl
+    , duration
+    , losses = skadkost)
   
-str(augmentOhlsson)
-
 ```
 
-# Why and what
-
-## What  
-
-In (overly) techhnical terms:  
-
-* Models map data (predictors) to other data (target variable) 
-* Produce estimate of a 'true' function 
-
-$$target = f(predictors)$$
-
-## Cost function  
-* 'Good' models = optimized 'Cost Function'
-
-$$Cost Function = CF(f(predictors),target)$$
-
-* Regularization adjusts this function
-
-$$Cost Function = CF(f(predictors),target)+Reg.Term$$
-
-
-## **OLS: **
-
-$$Cost Fuction = \sum_i^n{\left(y_i-\beta_0 -\sum_j^p\left(x_{ij}*\beta_j\right)\right)}^2 = RSS $$
-
-**Regularization:**
-
-$$Cost Fuction =\sum_i^n{\left(y_i-\beta_0 -\sum_j^p\left(x_{ij}*\beta_j\right)\right)}^2 + \lambda\sum_j^p{\|\beta_j\|}_L = RSS + \lambda\sum_j^p{\|\beta_j\|}_L$$
-
-## Types of Terms: L1 and L2 norms
-
-L1 = **L**east **A**bsolute **S**hrinkage and **S**election **O**perator = LASSO
-
-$$L=1\implies RSS + \lambda\sum_j^p|\beta_j|$$
-
-L2 = Ridge regression
-
-$$L=2\implies RSS + \lambda\sum_j^p{\beta_j}^2$$
-
-Each type of regularization has uses, speaking of...
-
-## Why
-
-* Your data is cursed (h/t -> L. Gjeltama)
-* Let the model pick your variables!
-* No p-hacking
-* Reduce chance that the model will overfit
-* Collinearity
-
 ##
+
+```{r}
+str(augmentOhlsson)
+```
+
+## Fit a model
 
 ```{r warning = FALSE}
 library(statmod)
 
 fit_glm <- glm(
-  losses ~ .-claim_count
-  , family=tweedie(var.power=1.1, link.power=0)
+  losses ~ .
+  , family = tweedie(var.power = 1.1, link.power = 0)
   , data = augmentOhlsson
 )
 ```
@@ -117,33 +79,87 @@ fit_glm %>%
   summary()
 ```
 
-L1 Norm works well in this use case; pushes things to zero.
-$$\beta = \frac{2x_iy_i-\lambda}{2x_i^2}$$
+## Options
 
-## Collinearity
-Predictors collinear (equation showing if move opposite directions same prediction but insane coefficients)
-
-If we know both are important, we may not want to choose:
-
-L2 Norm works in this situation because it restricts the size, but keeps both.
-$$\beta = \frac{2x_iy_i}{2x_i^2+2\lambda}$$
-
-Show age group and Age both in (or add variables that are linear transforms in our dataset)
-
-
-## Other options
-
+* Manual selection based on standard error of coefficients
 * Stepwise regression
 * Feature engineering
 * PCA
+* Partial least squares
+* Or ...
+
+## Regularization!
+
+Benefits:
+
+* "Curse of dimensionality" number of observations not much larger than $p$
+* No p-hacking
+* Let the model pick your variables!
+* Reduce chance that the model will overfit
+* Collinearity
+
+# What
+
+## What is regularization
+
+Regluarization adjusts the cost function which creates the model
+
+## The _what_ function?
+
+* Models map data (predictors) to other data (target variable)
+* The preferred model is one which optimizes some _cost_ of model output
+* OLS cost -> least squares
+* GLM -> maximum likelihood/residual deviance
+* Regularization augments OLS/GLM with a penalty based on the magnitude of the coefficients
+
+## OLS cost functions
+
+$$\sum_i^n{\left(y_i-\hat{y_i}\right)^2}=\sum_i^n{\left(y_i-\hat{\beta_0} -\sum_j^p\left(x_{ij}*\hat{\beta_j}\right)\right)}^2 = RSS $$
+
+## Regularization cost function
+
+$$\sum_i^n{\left(y_i-\hat{\beta_0} -\sum_j^p\left(x_{ij}*\hat{\beta_j}\right)\right)}^2 + \lambda\sum_j^p{\|\hat{\beta_j}\|}_L = RSS + \lambda\sum_j^p{\|\hat{\beta_j}\|_L}$$
+
+## Two cost functions
+
+**OLS**
+
+$$\sum_i^n{\left(y_i-\hat{y_i}\right)^2}=\sum_i^n{\left(y_i-\hat{\beta_0} -\sum_j^p\left(x_{ij}*\hat{\beta_j}\right)\right)}^2 = RSS $$
+
+**Regularization:**
+
+$$\sum_i^n{\left(y_i-\hat{\beta_0} -\sum_j^p\left(x_{ij}*\hat{\beta_j}\right)\right)}^2 + \lambda\sum_j^p{\|\hat{\beta_j}\|}_L = RSS + \lambda\sum_j^p{\|\hat{\beta_j}\|_L}$$
 
 ## Overfitting and the role of $\lambda$
 
-Slight analogue to credibility. $\lambda$ applies a shrinkage to the parameters. The "complement" is a coefficient of zero.
+Analogue to credibility. $\lambda$ applies a shrinkage to the parameters. The "complement" is the intercept.
 
-Same idea: reduce variance on out of sample data.
+Same idea: reduce variance on out of sample data. 
 
+Control weight given to predictors (i.e. $\hat{\beta_j}$), in favor of $\hat{\beta_0}$.
 
+## L?
+
+$$\sum_j^p{\|\hat{\beta_j}\|_L}$$
+
+$$L=1 \implies\sum_j^p{|\hat{\beta_j}|}$$
+
+$$L=2 \implies\sum_j^p{\hat{\beta_j}^2}$$
+
+## L
+
+* Can L be higher than 2?
+* Must L be an integer?
+
+## L1 and L2 norms
+
+L1 = **L**east **A**bsolute **S**hrinkage and **S**election **O**perator = LASSO
+
+$$L=1\implies RSS + \lambda\sum_j^p|\beta_j|$$
+
+L2 = Ridge regression
+
+$$L=2\implies RSS + \lambda\sum_j^p{\beta_j}^2$$
 
 # How
 
@@ -151,15 +167,92 @@ Same idea: reduce variance on out of sample data.
 
 1. Standardize the predictor space
 2. Form a set of candidate $\lambda$'s
-3. Use cross validation to measure RMSE (or other metric) and pick ideal $\lambda$
+3. Fit
+3. Use cross validation to measure RMSE (or other metric) on out of sample (test) data
+4. Pick the $\lambda$ which optimizes out of sample predictions
 
-# An example
+## Standardize predictors
 
-<!-- 
-The example could be done as a live demo. Open to suggestions about data.
--->
+* Why?
+* 
 
-# Bayesian analysis
+## Form a set of candidate $\lambda$'s
+
+```{r}
+
+```
+
+## Fit
+
+```{r}
+
+```
+
+## Use cross validation to measure RMSE (or other metric) on out of sample (test) data
+
+## Pick the $\lambda$ which optimizes out of sample predictions
+
+# Mathy stuff
+
+## The formula again
+
+$$\sum_i^n{\left(y_i-\hat{\beta_0} -\sum_j^p\left(x_{ij}*\hat{\beta_j}\right)\right)}^2 + \lambda\sum_j^p{\|\hat{\beta_j}\|}_L = RSS + \lambda\sum_j^p{\|\hat{\beta_j}\|_L}$$
+
+## Equivalently
+
+Maximize:
+
+$$\sum_i^n{\left(y_i-\hat{\beta_0} -\sum_j^p\left(x_{ij}*\hat{\beta_j}\right)\right)}^2$$
+
+Subject to:
+
+$$\sum_j^p{\|\hat{\beta_j}\|_L}\leq{t}$$
+
+## Shrink or vanish
+
+```{r echo = FALSE}
+t <- 0.6
+beta_ols <- c(0.75, 0.8)
+ellipse_2 <- c(0.5, 0.5)
+tbl_beta <- expand.grid(
+  beta_1 = seq(-1, 1, length.out = 500)
+  , beta_2 = seq(-1, 1, length.out = 500)
+) %>% 
+  mutate(
+    lasso = abs(beta_1) + abs(beta_2) <= t
+    , ridge = beta_1 ^ 2 + beta_2 ^ 2 <= t^2
+    , rss = 5
+  )
+
+tbl_beta %>% 
+  ggplot(aes(beta_1, beta_2), show.legend = FALSE) + 
+  geom_raster(data = tbl_beta %>% filter(ridge), aes(fill = ridge), fill = 'grey', alpha = 0.5) + 
+  geom_raster(data = tbl_beta %>% filter(lasso), aes(fill = lasso), fill = 'grey', alpha = 0.5)
+```
+
+##
+
+$$\beta = \frac{2x_iy_i-\lambda}{2x_i^2}$$
+
+$$\beta = \frac{2x_iy_i}{2x_i^2+2\lambda}$$
+
+Show age group and Age both in (or add variables that are linear transforms in our dataset)
+
+## L0
+
+Subject to:
+
+$$\sum_j^p{\|\hat{\beta_j}\|_0}=\sum_j^p{I(\beta_j\neq0)}\leq{t}$$
+
+No more than $t$ coefficients are not zero -> best subset.
+
+## Collinearity
+
+If we know both are important, we may not want to choose:
+
+L1/LASSO pushes things to zero.
+
+L2/Ridge restricts the size, but keeps both.
 
 ## Bayesian link
 
@@ -173,6 +266,7 @@ L2 = Bayes with normal priors
 
 * Option to consider for high-dimension data
 * Choice of hyperparameter needs a fair bit of data
+* `glmnet` package or `HDtweedie`
 
 ##
 
@@ -181,3 +275,4 @@ Thank you!
 ## References
 
 * http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Seventh%20Printing.pdf
+* 
