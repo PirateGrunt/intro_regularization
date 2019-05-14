@@ -164,7 +164,7 @@ $$L=2\implies RSS + \lambda\sum_j^p{\beta_j}^2$$
 
 Use `glmnet`
 
-```{r results = 'hide'}
+```{r results = 'hide', message=FALSE}
 mat_ohlsson <- tbl_ohlsson %>% 
   select(-losses) %>% 
   as.matrix()
