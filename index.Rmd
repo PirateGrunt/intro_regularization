@@ -213,8 +213,12 @@ fit_ols %>%
 ## Fit using many different $\lambda$'s
 
 ```{r echo = FALSE}
-fit_ridge %>% 
-  plot(xvar = 'lambda')
+# fit_ridge %>% 
+#   plot(xvar = 'lambda')
+library(coefplot)
+ridge_copath<-fit_ridge %>%
+    coefpath()
+ridge_copath
 ```
 
 ## What does lasso look like?
@@ -231,25 +235,32 @@ fit_lasso <- glmnet(
 ## What does lasso look like?
 
 ```{r echo = FALSE}
-fit_lasso %>% 
-  plot(xvar = 'lambda')
+# fit_lasso %>% 
+#   plot(xvar = 'lambda')
+lasso_copath<-fit_lasso %>%
+    coefpath()
+lasso_copath
 ```
 
 ## Compare
 
 ```{r echo = FALSE}
-old_par <- par(mfrow = c(1, 2))
+#  old_par <- par(mfrow = c(1, 2))
+# 
+# fit_ridge %>% plot(xvar = 'lambda')
+# title('Ridge')
+# abline(h = 0, col = 'black')
+# 
+# fit_lasso %>%
+#   plot(xvar = 'lambda')
+# title('Lasso')
+# abline(h = 0, col = 'black')
+# 
+# par(old_par)
+library(manipulateWidget)
+combineWidgets(ridge_copath,lasso_copath,nrow = 1,ncol = 2)
 
-fit_ridge %>% plot(xvar = 'lambda')
-title('Ridge')
-abline(h = 0, col = 'black')
 
-fit_lasso %>% 
-  plot(xvar = 'lambda')
-title('Lasso')
-abline(h = 0, col = 'black')
-
-par(old_par)
 ```
 
 ## Use cross validation to measure RMSE (or other metric) on out of sample (test) data
@@ -266,7 +277,13 @@ fit_lasso_cv <- cv.glmnet(
 ## What is wrong here?
 
 ```{r}
-plot(fit_lasso_cv)
+#plot(fit_lasso_cv)
+library(broom)
+tidy(fit_lasso_cv) %>%
+  ggplot(aes(lambda,estimate))+
+  geom_line()+
+  scale_x_log10()+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .25)
 ```
 
 ## Pick the $\lambda$ which optimizes out of sample predictions
@@ -277,6 +294,37 @@ fit_lasso_cv$lambda.min
 
 # The Tweedie distribution
 
+## OLS but not so ordinary
+
+```{r include=FALSE}
+
+percent0<-(tbl_ohlsson %>% filter(losses==0)%>%nrow())/nrow(tbl_ohlsson)
+
+```
+
+```{r echo=FALSE}
+tbl_ohlsson %>%
+  filter(losses>0)%>%
+  ggplot(aes(x=(losses)))+geom_density()+
+  ggtitle(paste0("Distribution of non-zero losses (",scales::percent(percent0),"=0)"))+
+  scale_y_continuous(labels=scales::percent)+
+  scale_x_continuous(labels=scales::comma)
+
+
+```
+
+## One curve to rule them all
+* Tweedie family contains any distribution that satisfies r:
+$$Variance = \phi* \mu^p$$
+* This includes
+  - Normal: $p=0$
+  - Poisson: $p=1$
+  - <span style="background-color: #FFFF00">Compound Gamma/Poisson: $1<p<2$ </span>
+  - Gamma: $p=2$
+  - Inverse Gaussian: $p=3$
+
+* Generally no closed form.
+  
 ## GLM
 
 ```{r warning = FALSE}
@@ -284,14 +332,54 @@ library(statmod)
 
 fit_glm <- glm(
   losses ~ .
-  , family = tweedie(var.power = 1.1, link.power = 0)
+  , family = tweedie(var.power = 1.5, link.power = 0)
   , data = tbl_ohlsson
 )
+
+summary(fit_glm)
+
 ```
 
 ## HDTweedie
+* Package is built on glmnet, with addition of the Tweedie family
+* We purposefully use the auto-selected lambdas from our prior modelling
+```{r}
+library(HDtweedie)
+fit_ridge_cv_tweedie <- cv.HDtweedie(
+  x = mat_ohlsson
+  , y = tbl_ohlsson$losses
+  , p = 1.5
+  , alpha = 0
+  , lambda = fit_ridge$lambda/exp(4.5)
+  , standardize=TRUE#
+)
 
+fit_lasso_cv_tweedie <- cv.HDtweedie(
+  x = mat_ohlsson
+  , y = tbl_ohlsson$losses
+  , p = 1.5
+  , alpha = 1
+  #, lambda = fit_lasso_cv$lambda/exp(2)
+  , standardize=TRUE
+)
+```
 
+## Compare Cross Validation
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+
+plot(fit_ridge_cv_tweedie)
+title('Ridge')
+plot(fit_lasso_cv_tweedie)
+title('Lasso')
+```
+
+## Compare Coef Paths
+
+* We'll once again grab the minimum $\lambda$ model
+```{r echo=FALSE}
+
+```
 # Mathy stuff
 
 ## The formula again
