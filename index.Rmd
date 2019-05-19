@@ -244,6 +244,9 @@ lasso_copath
 
 ## Compare
 
+
+
+
 ```{r echo = FALSE}
 #  old_par <- par(mfrow = c(1, 2))
 # 
@@ -266,6 +269,13 @@ combineWidgets(ridge_copath,lasso_copath,nrow = 1,ncol = 2)
 ## Use cross validation to measure RMSE (or other metric) on out of sample (test) data
 
 ```{r}
+fit_ridge_cv <- cv.glmnet(
+    x = mat_ohlsson
+  , y = tbl_ohlsson$losses
+  , family = 'gaussian'
+  , alpha = 0
+)
+
 fit_lasso_cv <- cv.glmnet(
     x = mat_ohlsson
   , y = tbl_ohlsson$losses
@@ -276,20 +286,42 @@ fit_lasso_cv <- cv.glmnet(
 
 ## What is wrong here?
 
-```{r}
+```{r echo=FALSE,message=FALSE}
 #plot(fit_lasso_cv)
 library(broom)
-tidy(fit_lasso_cv) %>%
-  ggplot(aes(lambda,estimate))+
+library(gridExtra)
+plt_lasso_cv<-
+  tidy(fit_lasso_cv) %>%
+  rename(Mean_Sq_Error=estimate) %>%
+  ggplot(aes(lambda,Mean_Sq_Error))+
   geom_line()+
   scale_x_log10()+
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .25)
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .25)+
+  geom_vline(xintercept=fit_lasso_cv$lambda.min)+
+  geom_vline(xintercept = fit_lasso_cv$lambda.1se,linetype="dotted")+
+  ggtitle("Lasso")
+
+plt_ridge_cv<-
+  tidy(fit_ridge_cv) %>%
+  rename(Mean_Sq_Error=estimate) %>%
+  ggplot(aes(lambda,Mean_Sq_Error))+
+  geom_line()+
+  scale_x_log10()+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .25)+
+  geom_vline(xintercept=fit_ridge_cv$lambda.min)+
+  geom_vline(xintercept = fit_ridge_cv$lambda.1se,linetype="dotted")+
+  ggtitle("Ridge")
+
+grid.arrange(plt_ridge_cv,plt_lasso_cv,ncol=1,nrow=2)
 ```
+
 
 ## Pick the $\lambda$ which optimizes out of sample predictions
 
-```{r}
+```{r hold=TRUE}
+fit_ridge_cv$lambda.min
 fit_lasso_cv$lambda.min
+
 ```
 
 # The Tweedie distribution
@@ -350,7 +382,7 @@ fit_ridge_cv_tweedie <- cv.HDtweedie(
   , y = tbl_ohlsson$losses
   , p = 1.5
   , alpha = 0
-  , lambda = fit_ridge$lambda/exp(4.5)
+  , lambda = fit_ridge$lambda/exp(7)
   , standardize=TRUE#
 )
 
@@ -364,22 +396,105 @@ fit_lasso_cv_tweedie <- cv.HDtweedie(
 )
 ```
 
-## Compare Cross Validation
-```{r echo=FALSE}
-par(mfrow=c(1,2))
-
-plot(fit_ridge_cv_tweedie)
-title('Ridge')
-plot(fit_lasso_cv_tweedie)
-title('Lasso')
-```
-
-## Compare Coef Paths
-
-* We'll once again grab the minimum $\lambda$ model
+## TThe Tweedie CV Plot
 ```{r echo=FALSE}
 
+plt_lasso_cv_tweed<-
+tibble(lambda=fit_lasso_cv_tweedie$lambda
+       ,Deviance=fit_lasso_cv_tweedie$cvm,conf.low=fit_lasso_cv_tweedie$cvlo,conf.high=fit_lasso_cv_tweedie$cvupper)%>%
+  ggplot(aes(lambda,Deviance))+
+  geom_line()+
+  scale_x_log10()+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .25)+
+  geom_vline(xintercept=fit_lasso_cv_tweedie$lambda.min)+
+  geom_vline(xintercept = fit_lasso_cv_tweedie$lambda.1se,linetype="dotted")+
+  ggtitle("Lasso")
+  
+
+plt_ridge_cv_tweed <-
+  tibble(lambda=fit_ridge_cv_tweedie$lambda
+       ,Deviance=fit_ridge_cv_tweedie$cvm,conf.low=fit_ridge_cv_tweedie$cvlo,conf.high=fit_ridge_cv_tweedie$cvupper) %>%
+  ggplot(aes(lambda,Deviance))+
+  geom_line()+
+  scale_x_log10()+
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .25)+
+  geom_vline(xintercept=fit_ridge_cv_tweedie$lambda.min)+
+  geom_vline(xintercept = fit_ridge_cv_tweedie$lambda.1se,linetype="dotted")+
+  ggtitle("Ridge")
+
+grid.arrange(plt_ridge_cv_tweed,plt_lasso_cv_tweed,ncol=1,nrow=2)
+
 ```
+
+## Tweedie Ridge Path
+```{r include=FALSE}
+{
+extractPath.HDtweedie <- function(model, intercept=FALSE, ...)
+{
+  thePath <-   
+    cbind(model$lambda,
+    t(coef(model,
+          s=model$lambda))) %>% 
+    as.tibble() %>% 
+    rename(lambda=V1,Intercept="(Intercept)") %>%
+    select(-Intercept) %>% 
+    dplyr::arrange(.data$lambda)
+  
+  if(!intercept)
+  {
+    thePath <- thePath %>% 
+      dplyr::select(-dplyr::matches('(Intercept)'))
+  }
+  
+  return(thePath)
+}
+
+coefpath.HDtweedie<-function(model,...){coefplot:::coefpath.glmnet(model)}
+coefpath.cv.HDtweedie <- function(model,
+                               xlab='Log Lambda',
+                               ylab='Coefficients',
+                               showLegend=c('onmouseover', 'auto', 'always', 
+                                            'follow' ,'never'),
+                               annotate=TRUE,
+                               colorMin='black', strokePatternMin='dotted',
+                               labelMin='lambda.min', locMin=c('bottom', 'top'),
+                               color1se='black', strokePattern1se='dotted',
+                               label1se='lambda.1se', loc1se=c('bottom', 'top'),
+                               ...)
+{
+  # figure out how to show the legend
+  showLegend <- match.arg(showLegend)
+  locMin <- match.arg(locMin)
+  loc1se <- match.arg(loc1se)
+  
+  g <- coefpath(model$HDtweedie.fit, ...)
+  
+  g %>% 
+    dygraphs::dyEvent(x=log(model$lambda.min), label=labelMin, 
+                      color=colorMin,
+                      labelLoc=locMin, strokePattern=strokePatternMin) %>% 
+    dygraphs::dyEvent(x=log(model$lambda.1se), label=label1se, 
+                      color=color1se,
+                      labelLoc=loc1se, strokePattern=strokePattern1se)
+}
+
+}
+```
+
+```{r echo = FALSE}
+ridge_tweed_copath<-fit_ridge_cv_tweedie %>%
+    coefpath()
+ridge_tweed_copath
+```
+
+## And Lasso...
+```{r echo=FALSE}
+lasso_tweed_copath<-fit_lasso_cv_tweedie %>%
+    coefpath()
+lasso_tweed_copath
+
+```
+
 # Mathy stuff
 
 ## The formula again
