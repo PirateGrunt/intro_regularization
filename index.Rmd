@@ -264,7 +264,7 @@ fit_lasso_cv <- cv.glmnet(
 )
 ```
 
-## What lambda to pick?
+## What $\lambda$ to pick?
 
 ```{r echo=FALSE,message=FALSE}
 #plot(fit_lasso_cv)
@@ -450,7 +450,7 @@ lasso_tweed_copath
 
 ```
 
-## TThe Tweedie CV Plot
+## The Tweedie CV Plot
 ```{r echo=FALSE}
 
 plt_lasso_cv_tweed<-
