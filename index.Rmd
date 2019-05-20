@@ -526,7 +526,11 @@ $$\sum_j^p{\|\hat{\beta_j}\|_L}\leq{t}$$
 
 ```{r echo = FALSE}
 t <- 0.6
-beta_ols <- c(0.75, 0.8)
+tbl_ols <- tibble(
+  beta_1 = 0.1
+  , beta_2 = 0.7
+)
+
 ellipse_2 <- c(0.5, 0.5)
 tbl_beta <- expand.grid(
   beta_1 = seq(-1, 1, length.out = 500)
@@ -535,13 +539,15 @@ tbl_beta <- expand.grid(
   mutate(
     lasso = abs(beta_1) + abs(beta_2) <= t
     , ridge = beta_1 ^ 2 + beta_2 ^ 2 <= t^2
-    , rss = 5
   )
 
 tbl_beta %>% 
   ggplot(aes(beta_1, beta_2), show.legend = FALSE) + 
+  geom_point(data = tbl_ols, color = 'red', size = 4) +
   geom_raster(data = tbl_beta %>% filter(ridge), aes(fill = ridge), fill = 'grey', alpha = 0.5) + 
-  geom_raster(data = tbl_beta %>% filter(lasso), aes(fill = lasso), fill = 'grey', alpha = 0.5)
+  geom_raster(data = tbl_beta %>% filter(lasso), aes(fill = lasso), fill = 'grey', alpha = 0.5) + 
+  scale_y_continuous(limits = c(-0.75, 0.75)) + 
+  scale_x_continuous(limits = c(-0.75, 0.75))
 ```
 
 ## The formulaic way of saying that
@@ -549,8 +555,6 @@ tbl_beta %>%
 $$\beta = \frac{2x_iy_i-\lambda}{2x_i^2}$$
 
 $$\beta = \frac{2x_iy_i}{2x_i^2+2\lambda}$$
-
-Show age group and Age both in (or add variables that are linear transforms in our dataset)
 
 ## L0
 
@@ -574,6 +578,8 @@ L1 = Bayes with Laplace prior
 
 L2 = Bayes with normal priors
 
+$$\prod^N_1{\Phi(y_n|\beta x_n, \sigma^2)\Phi(\beta |0, \lambda^{-1})}$$
+
 # Conclusion
 
 ## Conclusion
@@ -590,3 +596,5 @@ Thank you!
 
 * http://www-bcf.usc.edu/~gareth/ISL/ISLR%20Seventh%20Printing.pdf
 * https://web.stanford.edu/~hastie/Papers/ESLII.pdf
+* https://stats.stackexchange.com/questions/163388/l2-regularization-is-equivalent-to-gaussian-prior
+* https://github.com/PirateGrunt/intro_regularization
